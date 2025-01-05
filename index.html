@@ -9,15 +9,24 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
   <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: black;
+      color: white;
+    }
     canvas {
       display: block;
       margin: 0 auto;
       background: black;
     }
+    h1 {
+      text-align: center;
+    }
   </style>
 </head>
 <body>
-  <h1 style="text-align: center; color: white;">Full Body Tracking Game</h1>
+  <h1>Full Body Tracking Game</h1>
   <canvas id="output" width="640" height="480"></canvas>
   <script>
     const video = document.createElement('video');
@@ -27,8 +36,8 @@
     let score = 0;
 
     // 赤いターゲットの初期位置と半径
-    let circleX = Math.random() * canvas.width;
-    let circleY = Math.random() * canvas.height;
+    let circleX = Math.random() * (canvas.width - 40) + 20; // 適切な範囲で初期化
+    let circleY = Math.random() * (canvas.height - 40) + 20;
     const circleRadius = 20;
 
     // 衝突判定関数
@@ -49,33 +58,34 @@
     async function detectPose() {
       if (detector && video.readyState >= 2) {
         const poses = await detector.estimatePoses(video);
-        console.log("Poses detected:", poses);
 
         // 描画領域をクリア
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // 赤いターゲットを描画
         drawCircle(circleX, circleY, circleRadius, 'red');
-        console.log(`Circle Position: X=${circleX}, Y=${circleY}`);
 
         if (poses.length > 0) {
           const keypoints = poses[0].keypoints;
 
           keypoints.forEach(({ x, y, score: keypointScore }) => {
             if (keypointScore > 0.5) {
+              // スケーリングを考慮して描画
+              const scaledX = x * canvas.width;
+              const scaledY = y * canvas.height;
+
               ctx.beginPath();
-              ctx.arc(x * canvas.width, y * canvas.height, 10, 0, 2 * Math.PI);
+              ctx.arc(scaledX, scaledY, 10, 0, 2 * Math.PI);
               ctx.fillStyle = 'blue';
               ctx.fill();
 
               // ターゲットとの衝突判定
-              if (isPointInsideCircle(x * canvas.width, y * canvas.height, circleX, circleY, circleRadius)) {
-                console.log("Target touched!");
+              if (isPointInsideCircle(scaledX, scaledY, circleX, circleY, circleRadius)) {
                 score += 1;
 
                 // 新しいターゲットの位置
-                circleX = Math.random() * canvas.width;
-                circleY = Math.random() * canvas.height;
+                circleX = Math.random() * (canvas.width - 40) + 20;
+                circleY = Math.random() * (canvas.height - 40) + 20;
               }
             }
           });
