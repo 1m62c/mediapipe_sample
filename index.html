@@ -1,57 +1,43 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>トラッキングゲーム</title>
+  <title>Full Body Tracking Game</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-    }
-    video, canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: black;
     }
   </style>
 </head>
 <body>
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas"></canvas>
-
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+  <h1 style="text-align: center; color: white;">Full Body Tracking Game</h1>
+  <canvas id="output" width="640" height="480"></canvas>
   <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
+    const video = document.createElement('video');
+    const canvas = document.getElementById('output');
     const ctx = canvas.getContext('2d');
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
     let detector;
-    let circleX = Math.random() * canvas.width;
-    let circleY = Math.random() * canvas.height;
-    const circleRadius = 30;
     let score = 0;
 
-    async function setupCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      video.srcObject = stream;
-      return new Promise((resolve) => {
-        video.onloadedmetadata = () => resolve(video);
-      });
+    // 赤いターゲットの初期位置と半径
+    let circleX = Math.random() * canvas.width;
+    let circleY = Math.random() * canvas.height;
+    const circleRadius = 20;
+
+    // 衝突判定関数
+    function isPointInsideCircle(x, y, circleX, circleY, circleRadius) {
+      const distance = Math.sqrt((x - circleX) ** 2 + (y - circleY) ** 2);
+      return distance <= circleRadius;
     }
 
-    async function setupDetector() {
-      detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet);
-    }
-
+    // 赤いターゲットを描画
     function drawCircle(x, y, radius, color) {
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
@@ -59,33 +45,35 @@
       ctx.fill();
     }
 
-    function isPointInsideCircle(x, y, cx, cy, radius) {
-      const distance = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
-      return distance < radius;
-    }
-
-    async function detectPoses() {
+    // ポーズ検出関数
+    async function detectPose() {
       if (detector && video.readyState >= 2) {
         const poses = await detector.estimatePoses(video);
+        console.log("Poses detected:", poses);
+
+        // 描画領域をクリア
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 描画のリセットと赤いターゲットの描画
+        // 赤いターゲットを描画
         drawCircle(circleX, circleY, circleRadius, 'red');
+        console.log(`Circle Position: X=${circleX}, Y=${circleY}`);
 
         if (poses.length > 0) {
           const keypoints = poses[0].keypoints;
 
           keypoints.forEach(({ x, y, score: keypointScore }) => {
             if (keypointScore > 0.5) {
-              // ランドマークを描画
               ctx.beginPath();
               ctx.arc(x * canvas.width, y * canvas.height, 10, 0, 2 * Math.PI);
               ctx.fillStyle = 'blue';
               ctx.fill();
 
-              // 赤いターゲットとの衝突判定
+              // ターゲットとの衝突判定
               if (isPointInsideCircle(x * canvas.width, y * canvas.height, circleX, circleY, circleRadius)) {
+                console.log("Target touched!");
                 score += 1;
+
+                // 新しいターゲットの位置
                 circleX = Math.random() * canvas.width;
                 circleY = Math.random() * canvas.height;
               }
@@ -93,19 +81,39 @@
           });
         }
 
-        // スコアの描画
+        // スコアを表示
         ctx.fillStyle = 'white';
         ctx.font = '24px Arial';
         ctx.fillText(`Score: ${score}`, 20, 40);
       }
-      requestAnimationFrame(detectPoses);
+
+      // 次のフレームをリクエスト
+      requestAnimationFrame(detectPose);
     }
 
-    (async function main() {
-      await setupCamera();
-      await setupDetector();
-      detectPoses();
-    })();
+    // カメラを起動する関数
+    async function startVideo() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      await video.play();
+    }
+
+    // 初期化関数
+    async function init() {
+      await tf.setBackend('webgl');
+      const model = poseDetection.SupportedModels.MoveNet;
+      const config = { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
+      detector = await poseDetection.createDetector(model, config);
+
+      await startVideo();
+
+      video.addEventListener('loadeddata', () => {
+        detectPose();
+      });
+    }
+
+    // 初期化の呼び出し
+    init();
   </script>
 </body>
 </html>
