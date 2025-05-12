@@ -15,7 +15,7 @@ score = 0
 # ランダムに赤い丸を表示するための初期位置
 circle_x = random.randint(100, 500)
 circle_y = random.randint(100, 400)
-circle_radius = 20
+circle_radius = 30
 
 # カメラからの映像をキャプチャ
 cap = cv2.VideoCapture(0)
@@ -24,11 +24,13 @@ cap = cv2.VideoCapture(0)
 game_duration = 30
 start_time = time.time()
 
+# タッチ判定
 def is_touching_circle(point_x, point_y, circle_x, circle_y, circle_radius):
     distance = math.sqrt((point_x - circle_x) ** 2 + (point_y - circle_y) ** 2)
     return distance < circle_radius
 
 def generate_new_circle_position(frame_width, frame_height, circle_radius):
+    """ 新しい円の位置をランダムに生成 """
     return random.randint(circle_radius, frame_width - circle_radius), random.randint(circle_radius, frame_height - circle_radius)
 
 while cap.isOpened():
@@ -70,7 +72,7 @@ while cap.isOpened():
                            int(landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE].y * frame.shape[0]))
         }
 
-        # タッチ判定
+        # スコア可算
         for key, (x, y) in keypoints.items():
             if is_touching_circle(x, y, circle_x, circle_y, circle_radius):
                 score += 1
@@ -98,9 +100,26 @@ while cap.isOpened():
     if cv2.waitKey(10) & 0xFF == ord('q'):
         break
 
-# リソースの解放
+# ゲーム終了後にスコアを5秒間表示
+end_time = time.time()  # ゲーム終了時刻を記録
+while time.time() - end_time < 5:  # 5秒間ループ
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    frame = cv2.flip(frame, 1)
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+    # ゲーム終了メッセージとスコアを表示
+    cv2.putText(frame, f'Time Over!', (150, 200), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 3, cv2.LINE_AA)
+    cv2.putText(frame, f'Your Score: {score}', (120, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3, cv2.LINE_AA)
+
+    cv2.imshow('Full Body Tracking Game', frame)
+
+    if cv2.waitKey(10) & 0xFF == ord('q'):  # 'q' を押したら即終了
+        break
+
+# リソース解放
 cap.release()
 cv2.destroyAllWindows()
-
-# ゲーム終了メッセージ
-print(f'Game Over! Your score is {score}')
